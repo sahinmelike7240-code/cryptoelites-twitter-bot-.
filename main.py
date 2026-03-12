@@ -7,9 +7,8 @@ import os
 # --- AYARLAR (Railway'deki Variables kısmından çekilir) ---
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 CHANNEL_ID = os.getenv("CHANNEL_ID")
-# RSS.app linkini buraya direkt sabitliyoruz
 feed_url = "https://rss.app/feeds/X411D152Had8CdC6.xml"
-CHECK_INTERVAL = 120 # 2 dakikada bir kontrol eder
+CHECK_INTERVAL = 120 
 
 last_link = ""
 
@@ -33,10 +32,9 @@ def send_to_telegram(message, image_url=None):
             }
         
         response = requests.post(url, data=payload)
-        print(f"Telegram Yanıtı: {response.status_code}")
         return response.status_code == 200
     except Exception as e:
-        print(f"Mesaj gonderilirken hata olustu: {e}")
+        print(f"Hata: {e}")
 
 print("Bot baslatildi...")
 
@@ -48,20 +46,33 @@ while True:
             tweet = feed.entries[0]
             current_link = tweet.link
             
-            # Eğer yeni bir tweet ise
             if current_link != last_link:
-                # Metni al
                 raw_text = tweet.get('summary', tweet.get('description', ''))
                 
-                # 1. RSS'in sonuna eklediği tarih ve kullanıcı adını temizle
-                # Genellikle "— CryptoELITES (@...)" şeklinde ekler, oradan kesiyoruz.
+                # Tarih ve kullanıcı adını temizle
                 if "—" in raw_text:
                     raw_text = raw_text.split("—")[0].strip()
                 
-                # 2. Satır aralıklarını (Enter) korumak için <br> etiketlerini düzenle
+                # Satır aralıklarını koru
                 clean_text = raw_text.replace('<br />', '\n').replace('<br>', '\n')
-                # 3. Kalan HTML etiketlerini temizle
                 clean_text = re.sub(r'<[^>]+>', '', clean_text)
                 
-                # Mesajı oluştur (Twitter'daki gibi tertemiz)
-                message = f"{clean_text.strip()}\n\n<a href='{current_link}
+                # Mesaj formatı (Hata düzeltildi)
+                message = f"{clean_text.strip()}\n\n<a href='{current_link}'>Tweeti Görüntüle</a>"
+                
+                image_url = None
+                if 'media_content' in tweet:
+                    image_url = tweet.media_content[0]['url']
+                elif 'links' in tweet:
+                    for l in tweet.links:
+                        if 'image' in l.get('type', ''):
+                            image_url = l.get('href')
+                
+                if send_to_telegram(message, image_url):
+                    last_link = current_link
+                    print(f"Basarili: {current_link}")
+        
+    except Exception as e:
+        print(f"Döngü hatası: {e}")
+    
+    time.sleep(CHECK_INTERVAL)
