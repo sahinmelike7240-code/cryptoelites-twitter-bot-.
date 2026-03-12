@@ -35,7 +35,7 @@ def send_to_telegram(message, image_url=None):
         print(f"Mesaj gonderilirken hata olustu: {e}")
 
 print("Bot baslatildi...")
-
+send_to_telegram("Sistem Kontrol: Bot başarıyla aktif edildi! 🚀")
 while True:
     try:
         # RSSHub üzerinden Twitter akışını al
