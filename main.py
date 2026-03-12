@@ -4,7 +4,7 @@ import time
 import re
 import os
 
-# --- AYARLARIN (Railway'deki Variables kısmından çekilir) ---
+# --- AYARLAR (Railway'deki Variables kısmından çekilir) ---
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 CHANNEL_ID = os.getenv("CHANNEL_ID")
 # RSS.app linkini buraya direkt sabitliyoruz çünkü en sağlamı bu:
@@ -20,18 +20,18 @@ def send_to_telegram(message, image_url=None):
             payload = {
                 "chat_id": CHANNEL_ID,
                 "photo": image_url,
-                "caption": message,
-                "parse_mode": "HTML"
+                "caption": message
             }
         else:
             url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
             payload = {
                 "chat_id": CHANNEL_ID,
-                "text": message,
-                "parse_mode": "HTML"
+                "text": message
             }
-        r = requests.post(url, data=payload)
-        print(f"Telegram Yanıtı: {r.status_code}")
+        
+        response = requests.post(url, data=payload)
+        print(f"Telegram Yanıtı: {response.status_code}")
+        return response.status_code == 200
     except Exception as e:
         print(f"Mesaj gonderilirken hata olustu: {e}")
 
@@ -44,39 +44,36 @@ while True:
         feed = feedparser.parse(feed_url)
         
         if feed.entries:
+            # En son tweeti al
             tweet = feed.entries[0]
-            link = tweet.link
+            current_link = tweet.link
             
-            # İlk çalıştırmada son tweeti kaydet ama paylaşma
-            if not last_link:
-                last_link = link
-                print(f"Baslangic tweeti kaydedildi: {link}")
-            
-            # Eğer yeni bir tweet ise
-            elif link != last_link:
-                # Metni al (RSS.app 'summary' veya 'description' kullanır)
+            # Eğer bu link daha önce paylaşılanla aynı değilse PAYLAŞ
+            if current_link != last_link:
+                # Metni al ve temizle
                 raw_text = tweet.get('summary', tweet.get('description', ''))
-                # HTML etiketlerini temizle
-                clean_text = re.sub(r'<[^>]+>', '', raw_text)
+                clean_text = re.sub(r'<[^>]+>', '', raw_text) # HTML etiketlerini sil
                 
-                full_message = f"{clean_text}\n\n🔗 <a href='{link}'>Tweet Linki</a>"
+                message = f"{clean_text}\n\n{current_link}"
                 
-                # Görsel bulma
-                img_url = None
+                # Varsa görseli al
+                image_url = None
                 if 'media_content' in tweet:
-                    img_url = tweet.media_content[0]['url']
+                    image_url = tweet.media_content[0]['url']
                 elif 'links' in tweet:
                     for l in tweet.links:
                         if 'image' in l.get('type', ''):
-                            img_url = l.get('href')
-
-                send_to_telegram(full_message, img_url)
-                last_link = link
-                print(f"Yeni tweet paylasildi: {link}")
-        else:
-            print("RSS feed su an bos veya okunamiıyor.")
+                            image_url = l.get('href')
                 
-    except Exception as e:
-        print(f"Dongu hatasi: {e}")
+                # Telegram'a gönder
+                if send_to_telegram(message, image_url):
+                    last_link = current_link
+                    print(f"Yeni tweet paylasildi: {current_link}")
         
+        else:
+            print("RSS feed bos veya ulasilamiyor.")
+
+    except Exception as e:
+        print(f"Bir hata olustu: {e}")
+    
     time.sleep(CHECK_INTERVAL)
